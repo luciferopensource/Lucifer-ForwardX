@@ -3,6 +3,12 @@ import os
 import psutil
 import time
 import asyncio
+# === Python 3.12+ Event Loop Compatibility ===
+try:
+    asyncio.get_event_loop()
+except RuntimeError:
+    asyncio.set_event_loop(asyncio.new_event_loop())
+
 import re
 import shutil
 import subprocess
@@ -90,11 +96,36 @@ LOGIN_SYSTEM = os.environ.get("LOGIN_SYSTEM", "True").lower() == "true"
 ERROR_MESSAGE = os.environ.get("ERROR_MESSAGE", "True").lower() == "true"
 WAITING_TIME = int(os.environ.get("WAITING_TIME", 3))
 
-admin_str = os.environ.get("ADMINS", "")
-ADMINS = [int(x) for x in admin_str.split(",") if x.strip().isdigit()]
+# --- AUTHORIZATION & ADMIN CONFIGURATION ---
+owner_str = os.environ.get("OWNER_ID", "").strip()
+OWNER_ID = int(owner_str) if owner_str.isdigit() else 0
 
-sudo_str = os.environ.get("SUDOS", "")
-SUDOS = [int(x) for x in sudo_str.split(",") if x.strip().isdigit()]
+admin_str = os.environ.get("ADMINS", "").strip() or os.environ.get("ADMIN_ID", "").strip()
+ADMINS = [int(x) for x in re.split(r'[,;\s]+', admin_str) if x.strip().isdigit()]
+
+sudo_str = os.environ.get("SUDOS", "").strip()
+SUDOS = [int(x) for x in re.split(r'[,;\s]+', sudo_str) if x.strip().isdigit()]
+
+auth_str = os.environ.get("AUTH_USERS", "").strip()
+AUTH_USERS_EXTRA = [int(x) for x in re.split(r'[,;\s]+', auth_str) if x.strip().isdigit()]
+
+if OWNER_ID and OWNER_ID not in ADMINS:
+    ADMINS.append(OWNER_ID)
+
+# Master set of all authorized users (Owner, Admins, Sudos)
+AUTH_USERS = set(ADMINS + SUDOS + AUTH_USERS_EXTRA)
+if OWNER_ID:
+    AUTH_USERS.add(OWNER_ID)
+
+UNAUTH_NOTIFY_CACHE = {}  # user_id -> timestamp (throttle access denial notices)
+
+def is_authorized(user_id: int) -> bool:
+    if not user_id:
+        return False
+    if not AUTH_USERS:
+        # If no admins or owner configured in environment, allow open access
+        return True
+    return user_id in AUTH_USERS
 
 HELP_TXT = """<b>📚 BOT'S USAGE GUIDE</b>
 
@@ -139,9 +170,23 @@ HELP_TXT = """<b>📚 BOT'S USAGE GUIDE</b>
 
 class Database:
     def __init__(self, uri, database_name):
-        self._client = motor.motor_asyncio.AsyncIOMotorClient(uri)
-        self.db = self._client[database_name]
-        self.col = self.db.users
+        if uri:
+            self._client = motor.motor_asyncio.AsyncIOMotorClient(uri)
+            self.db = self._client[database_name or "restrict_bot"]
+            self.col = self.db.users
+        else:
+            self._client = None
+            self.db = None
+            self.col = None
+
+    async def init_indexes(self):
+        try:
+            await self.col.create_index("id", unique=True)
+            await self.db.watchers.create_index([("source_id", 1), ("source_thread", 1)])
+            await self.db.sync_progress.create_index([("user_id", 1), ("source_id", 1), ("dest_id", 1)])
+            print("✅ Database indexes verified and initialized.")
+        except Exception as e:
+            print(f"⚠️ Index initialization notice: {e}")
 
     async def get_dl_status(self):
         setting = await self.db.settings.find_one({'id': 'system'})
@@ -343,6 +388,46 @@ async def custom_ask(self, chat_id: int, text: str, filters=None, timeout: int =
         return mock_msg
 
 Client.ask = custom_ask
+
+# ==============================================================================
+# --- GLOBAL ACCESS CONTROL GATEKEEPERS (GROUP -2) ---
+# ==============================================================================
+
+@app.on_message(group=-2)
+async def auth_gatekeeper(client: Client, message: Message):
+    if not AUTH_USERS:
+        return
+    user_id = message.from_user.id if message.from_user else 0
+    if not user_id:
+        return
+    if not is_authorized(user_id):
+        message.stop_propagation()
+        now = time.time()
+        last_sent = UNAUTH_NOTIFY_CACHE.get(user_id, 0)
+        if now - last_sent > 60:
+            UNAUTH_NOTIFY_CACHE[user_id] = now
+            try:
+                await message.reply(
+                    "⛔ <b>Access Denied!</b>\n\n"
+                    "This is a private automation bot restricted strictly to authorized administrators.\n\n"
+                    f"🆔 <b>Your User ID:</b> <code>{user_id}</code>\n"
+                    "<i>Please contact the bot administrator if you require access.</i>",
+                    quote=True
+                )
+            except Exception:
+                pass
+
+@app.on_callback_query(group=-2)
+async def callback_auth_gatekeeper(client: Client, query: CallbackQuery):
+    if not AUTH_USERS:
+        return
+    user_id = query.from_user.id if query.from_user else 0
+    if not is_authorized(user_id):
+        query.stop_propagation()
+        try:
+            await query.answer("⛔ Access Denied: You are not authorized to use this bot.", show_alert=True)
+        except Exception:
+            pass
 
 @app.on_message(filters.private, group=-1)
 async def ask_listener(client, message):
@@ -1012,7 +1097,7 @@ async def check_link_restriction(user_id, link_text):
     finally:
         if is_temp_client and check_client:
             try: await check_client.disconnect()
-            except: pass
+            except Exception: pass
         
     return is_restricted, status_msg
     
@@ -1221,6 +1306,8 @@ async def test_destination_access(client: Client, chat_id, thread_id=None):
 @app.on_message(filters.command(["start"]) & (filters.private | filters.group))
 async def send_start(client: Client, message: Message):
     user_id = message.from_user.id
+    if not is_authorized(user_id):
+        return await message.reply(f'⛔ <b>Access Denied!</b>\n\nThis bot is private and restricted to authorized administrators.\n\n🆔 <b>Your User ID:</b> <code>{user_id}</code>', quote=True)
     user_name = message.from_user.first_name
     
     try:
@@ -1260,6 +1347,9 @@ async def send_start(client: Client, message: Message):
 
 @app.on_message(filters.command(["help"]) & (filters.private | filters.group))
 async def send_help(client: Client, message: Message):
+    user_id = message.from_user.id if message.from_user else 0
+    if not is_authorized(user_id):
+        return await message.reply('⛔ <b>Access Denied:</b> You are not authorized to use this bot.', quote=True)
     await client.send_message(
         message.chat.id, 
         text=HELP_TXT,
@@ -1278,6 +1368,8 @@ async def toggle_dl_command(client: Client, message: Message):
 @app.on_message(filters.command(["tasks", "progress"]) & filters.private)
 async def task_refresh_handler(client: Client, message: Message):
     user_id = message.from_user.id
+    if not is_authorized(user_id):
+        return await message.reply('⛔ <b>Access Denied:</b> You are not authorized to use this bot.', quote=True)
     user_tasks = ACTIVE_PROCESSES.get(user_id, {})
     if not user_tasks:
         return await message.reply("💤 **No active tasks running.**")
@@ -1290,6 +1382,8 @@ async def task_refresh_handler(client: Client, message: Message):
 @app.on_message(filters.command(["cancel"]) & (filters.private | filters.group))
 async def send_cancel(client: Client, message: Message):
     user_id = message.from_user.id
+    if not is_authorized(user_id):
+        return await message.reply('⛔ <b>Access Denied:</b> You are not authorized to use this bot.', quote=True)
 
     if user_id in PENDING_TASKS:
         del PENDING_TASKS[user_id]
@@ -1342,7 +1436,7 @@ async def cancel_callback(client: Client, query):
         if not user_tasks:
             await query.answer("No active tasks to cancel.", show_alert=True)
             try: await query.message.delete()
-            except: pass
+            except Exception: pass
             return
         for tid in user_tasks:
             CANCEL_FLAGS[tid] = True 
@@ -1355,7 +1449,7 @@ async def cancel_callback(client: Client, query):
         if task_uuid not in user_tasks:
             await query.answer("Task not found or already finished.", show_alert=True)
             try: await query.message.delete()
-            except: pass
+            except Exception: pass
             return
             
         user_tasks[task_uuid]["confirming_cancel"] = True
@@ -1375,11 +1469,11 @@ async def cancel_callback(client: Client, query):
             await query.answer("▶️ Task Resumed!", show_alert=False)
             if query.message.id != user_tasks[task_uuid].get("status_msg_id"):
                 try: await query.message.delete()
-                except: pass
+                except Exception: pass
         else:
             await query.answer("Task already finished.", show_alert=True)
             try: await query.message.delete()
-            except: pass
+            except Exception: pass
         return
 
     if data.startswith("cancel_task:"):
@@ -1388,7 +1482,7 @@ async def cancel_callback(client: Client, query):
         if task_uuid not in user_tasks:
             await query.answer("Task not found or already finished.", show_alert=True)
             try: await query.message.delete()
-            except: pass
+            except Exception: pass
             return
         CANCEL_FLAGS[task_uuid] = True
         await query.message.edit(f"🛑 **Task cancelled:** `{user_tasks[task_uuid].get('item','Task')}`\nIt will stop shortly.")
@@ -1398,7 +1492,7 @@ async def cancel_callback(client: Client, query):
 async def close_menu(client, query):
     try:
         await query.message.delete()
-    except:
+    except Exception:
         await query.answer("Menu closed.")
 
 @app.on_message(filters.command(["pixel"]) & (filters.user(ADMINS) | filters.user(SUDOS)))
@@ -1537,6 +1631,8 @@ async def bot_stats_handler(client: Client, message: Message):
 @app.on_message(filters.private & ~filters.forwarded & filters.command(["logout"]))
 async def logout(client, message):
     user_id = message.from_user.id
+    if not is_authorized(user_id):
+        return await message.reply('⛔ <b>Access Denied:</b> You are not authorized to use this bot.', quote=True)
     if not await db.is_user_exist(user_id):
         return await message.reply_text("You are not logged in.")
 
@@ -1580,7 +1676,7 @@ async def logout(client, message):
             try:
                 if user_client and user_client.is_connected:
                     await user_client.disconnect()
-            except: pass
+            except Exception: pass
 
     if user_id in USER_CLIENTS:
         try:
@@ -1597,6 +1693,9 @@ async def logout(client, message):
 
 @app.on_message(filters.private & ~filters.forwarded & filters.command(["login"]))
 async def login_handler(bot: Client, message: Message):
+    user_id = message.from_user.id if message.from_user else 0
+    if not is_authorized(user_id):
+        return await message.reply('⛔ <b>Access Denied:</b> You are not authorized to use this bot.', quote=True)
     
     if not await db.is_user_exist(message.from_user.id):
         await db.add_user(message.from_user.id, message.from_user.first_name)
@@ -1702,7 +1801,7 @@ async def login_handler(bot: Client, message: Message):
             
             try:
                 await uclient.disconnect()
-            except:
+            except Exception:
                 pass
     except Exception as e:
         return await message.reply_text(f"<b>ERROR IN LOGIN:</b> `{e}`")
@@ -1781,6 +1880,8 @@ async def broadcast(bot, message):
 @app.on_message(filters.command(["watch"]) & filters.private)
 async def watch_setup(client: Client, message: Message):
     user_id = message.from_user.id
+    if not is_authorized(user_id):
+        return await message.reply('⛔ <b>Access Denied:</b> You are not authorized to use this bot.', quote=True)
     
     if len(message.command) < 2:
         return await message.reply("**Usage:**\n`/watch https://t.me/channel/123`\n(Supports Topics too!)")
@@ -1938,6 +2039,8 @@ async def unwatch_callback(client, query):
 @app.on_message((filters.text | filters.caption) & filters.private & ~filters.command(["dl", "start", "help", "cancel", "botstats", "login", "logout", "broadcast", "status", "watch", "unwatch", "watchers", "removetarget", "removesource", "log", "tasks", "progress", "toggledl"]))
 async def save(client: Client, message: Message):
     user_id = message.from_user.id
+    if not is_authorized(user_id):
+        return await message.reply('⛔ <b>Access Denied:</b> You are not authorized to use this bot.', quote=True)
     if user_id in PENDING_TASKS:
         if PENDING_TASKS[user_id].get("status") == "waiting_id":
             await process_custom_destination(client, message)
@@ -1977,6 +2080,8 @@ async def save(client: Client, message: Message):
 @app.on_message(filters.command(["dl"]) & (filters.private | filters.group))
 async def dl_handler(client: Client, message: Message):
     user_id = message.from_user.id
+    if not is_authorized(user_id):
+        return await message.reply('⛔ <b>Access Denied:</b> You are not authorized to use this bot.', quote=True)
     link_text = ""
     
     reply = message.reply_to_message
@@ -2093,7 +2198,7 @@ async def format_toggle_cb(client, query):
     else: current.append(fmt)
     PENDING_TASKS[user_id]["text_format"] = current
     try: await query.message.edit_reply_markup(get_format_keyboard(current))
-    except: pass
+    except Exception: pass
     await query.answer()
 
 @app.on_callback_query(filters.regex("^format_none$"))
@@ -2102,7 +2207,7 @@ async def format_none_cb(client, query):
     if user_id not in PENDING_TASKS: return await query.answer("Expired.", show_alert=True)
     PENDING_TASKS[user_id]["text_format"] = []
     try: await query.message.edit_reply_markup(get_format_keyboard([]))
-    except: pass
+    except Exception: pass
     await query.answer()
 
 @app.on_callback_query(filters.regex("^format_start$"))
@@ -2158,7 +2263,7 @@ async def filter_toggle_cb(client, query):
     else: allowed.append(mtype)
     PENDING_TASKS[user_id]["allowed_types"] = allowed
     try: await query.message.edit_reply_markup(get_filter_keyboard(allowed))
-    except: pass
+    except Exception: pass
     await query.answer()
 
 @app.on_callback_query(filters.regex("^filter_all$"))
@@ -2167,7 +2272,7 @@ async def filter_all_cb(client, query):
     if user_id not in PENDING_TASKS: return await query.answer("Expired.", show_alert=True)
     PENDING_TASKS[user_id]["allowed_types"] = ALL_MSG_TYPES.copy()
     try: await query.message.edit_reply_markup(get_filter_keyboard(ALL_MSG_TYPES))
-    except: pass
+    except Exception: pass
     await query.answer()
 
 @app.on_callback_query(filters.regex("^filter_none$"))
@@ -2176,7 +2281,7 @@ async def filter_none_cb(client, query):
     if user_id not in PENDING_TASKS: return await query.answer("Expired.", show_alert=True)
     PENDING_TASKS[user_id]["allowed_types"] = []
     try: await query.message.edit_reply_markup(get_filter_keyboard([]))
-    except: pass
+    except Exception: pass
     await query.answer()
 
 @app.on_callback_query(filters.regex("^filter_start$"))
@@ -2207,7 +2312,7 @@ async def process_custom_destination(client: Client, message: Message):
     try:
         if message.reply_to_message and message.reply_to_message.from_user.is_self:
             await message.reply_to_message.delete()
-    except:
+    except Exception:
         pass
     try:
         dest_chat_id = None
@@ -2383,7 +2488,7 @@ async def finalize_watcher_setup(client, message, data, delay, user_id=None):
             try:
                 chat = await user_client.get_chat(source_id)
                 source_title = chat.title or str(source_id)
-            except:
+            except Exception:
                 source_title = str(source_id)
         else:
             username = src_link.replace("https://", "").replace("http://", "").replace("t.me/", "").split("/")[0]
@@ -2501,7 +2606,7 @@ async def check_disk_space(required_bytes=500 * 1024 * 1024):
         if free < required_bytes: 
             return False
         return True
-    except:
+    except Exception:
         return True
 
 async def cleanup_watchdog():
@@ -2556,7 +2661,7 @@ async def start_task_final(client: Client, message_context: Message, task_data: 
                 await message_context.edit(start_msg)
             else:
                 await message_context.reply(start_msg)
-    except: pass
+    except Exception: pass
     
     await send_log(f"▶️ **Task Started**\nUser: `{user_id}`\nLink: `{task_data['link'][:40]}...`")
 
@@ -2695,7 +2800,7 @@ async def process_links_logic(client: Client, message: Message, text: str, targe
                         toID = fromID
                 else:
                     try: toID = int(end_str)
-                    except: toID = fromID
+                    except Exception: toID = fromID
             else:
                 fromID = toID = int(last_segment)
 
@@ -2720,7 +2825,7 @@ async def process_links_logic(client: Client, message: Message, text: str, targe
             if saved_msg_id >= toID:
                 skip_msg = (f"⏭ **DUPLICATE SKIPPED!**\n🤖 **Bot/User:** {user_mention}\n📂 **Source ID:** `{chatid_check}`\n🎯 **Destination:** `{dest_title}`\n✅ **Status:** Files up to ID `{toID}` are already synced.")
                 try: await client.send_message(message.chat.id, skip_msg, reply_to_message_id=message.id)
-                except: pass
+                except Exception: pass
                 if task_uuid in ACTIVE_PROCESSES.get(user_id, {}): del ACTIVE_PROCESSES[user_id][task_uuid]
                 if is_temp_client: await acc.stop()
                 return
@@ -2730,14 +2835,14 @@ async def process_links_logic(client: Client, message: Message, text: str, targe
                 fromID = saved_msg_id + 1
                 resume_msg = (f"♻️ **AUTO-RESUME ACTIVATED!**\n🤖 **Bot/User:** {user_mention}\n📂 **Source ID:** `{chatid_check}`\n🎯 **Destination:** `{dest_title}`\n▶️ **Resuming From ID:** `{fromID}`")
                 try: await client.send_message(message.chat.id, resume_msg, reply_to_message_id=message.id)
-                except: pass
+                except Exception: pass
 
             total_count = max(1, toID - fromID + 1)
             
             try:
                 source_chat = await acc.get_chat(chatid_check)
                 source_title = source_chat.title or "Private Chat"
-            except: pass
+            except Exception: pass
 
             task_info.update({
                 "source_title": source_title, 
@@ -2805,7 +2910,7 @@ async def process_links_logic(client: Client, message: Message, text: str, targe
                     wait_msg = f"⏳ **Rate Limiting Detected**\nSleeping for {wait_time} seconds..."
                     try: 
                         if not is_restricted and not task_info.get("confirming_cancel"): await client.edit_message_text(task_info.get("status_chat_id"), task_info.get("status_msg_id"), wait_msg)
-                    except: pass
+                    except Exception: pass
                     await asyncio.sleep(wait_time)
                     continue
                     
@@ -2868,7 +2973,7 @@ async def process_links_logic(client: Client, message: Message, text: str, targe
                             
                             if needs_refresh:
                                 try: await client.delete_messages(active_chat, active_msg_id)
-                                except: pass
+                                except Exception: pass
                                 new_msg = await client.send_message(message.chat.id, fresh_status_ui, reply_markup=cancel_btn, reply_to_message_id=message.id)
                                 task_info["status_msg_id"] = new_msg.id
                                 task_info["status_chat_id"] = new_msg.chat.id
@@ -2920,7 +3025,7 @@ async def process_links_logic(client: Client, message: Message, text: str, targe
 
             if task_uuid in ACTIVE_PROCESSES.get(user_id, {}):
                 try: del ACTIVE_PROCESSES[user_id][task_uuid]
-                except: pass
+                except Exception: pass
             
             CANCEL_FLAGS.pop(task_uuid, None)
 
@@ -2937,7 +3042,7 @@ async def process_links_logic(client: Client, message: Message, text: str, targe
 
             if acc and is_temp_client: 
                 try: await acc.stop()
-                except: pass
+                except Exception: pass
 
             duration = time.time() - start_time
             time_taken_str = get_readable_time(int(duration))
@@ -2953,7 +3058,7 @@ async def process_links_logic(client: Client, message: Message, text: str, targe
             )
             
             try: await client.send_message(message.chat.id, final_text, reply_to_message_id=message.id)
-            except: pass
+            except Exception: pass
 
 async def handle_private(client: Client, acc, message: Message, chatid, msgid: int, index: int, total_count: int, status_message: Message, targets: list, delay, user_id, task_uuid=None, is_restricted=False, header_text="", filter_thread_id=None, allowed_types=None, text_format=None):
     if not task_uuid:
@@ -3046,7 +3151,7 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid: i
                 if "TOO_LONG" in str(e_text):
                     clean_caption = re.sub(r'<[^>]+>', '', clean_caption)[:4000]
                     try: await client.send_message(chat_id=dest['dest_id'], text=clean_caption, reply_markup=msg.reply_markup, reply_to_message_id=dest.get('dest_thread'), disable_web_page_preview=True)
-                    except: pass
+                    except Exception: pass
                 else:
                     try:
                         await acc.send_message(
@@ -3061,7 +3166,7 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid: i
                         if "TOO_LONG" in str(e_text2):
                             clean_caption = re.sub(r'<[^>]+>', '', clean_caption)[:4000]
                             try: await acc.send_message(chat_id=dest['dest_id'], text=clean_caption, reply_markup=msg.reply_markup, reply_to_message_id=dest.get('dest_thread'), disable_web_page_preview=True)
-                            except: pass
+                            except Exception: pass
         return True, "success"
 
     original_filename = "unknown_file"
@@ -3093,7 +3198,7 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid: i
                     await client.copy_message(chat_id=dest_chat_id, from_chat_id=chatid, message_id=msgid, reply_to_message_id=dest_thread_id, caption=fallback_cap, reply_markup=msg.reply_markup)
                     forward_success = True
                     continue
-                except: pass
+                except Exception: pass
                 try:
                     await acc.copy_message(chat_id=dest_chat_id, from_chat_id=chatid, message_id=msgid, reply_to_message_id=dest_thread_id, caption=clean_caption, parse_mode=enums.ParseMode.HTML, reply_markup=msg.reply_markup)
                     forward_success = True
@@ -3106,7 +3211,7 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid: i
                         fallback_cap = prepare_caption_fallback(clean_caption, media_file_size)
                         await acc.copy_message(chat_id=dest_chat_id, from_chat_id=chatid, message_id=msgid, reply_to_message_id=dest_thread_id, caption=fallback_cap, reply_markup=msg.reply_markup)
                         forward_success = True
-                    except:
+                    except Exception:
                         print(f"Task Fast-Copy blocked: {e2}")
         if forward_success: return True, "success"
 
@@ -3170,11 +3275,11 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid: i
                                             retry_part += 1
                                             await asyncio.sleep(3)
                                 try: os.remove(part)
-                                except: pass
+                                except Exception: pass
                     
                     if up_task and not up_task.done(): up_task.cancel()
                     try: os.remove(file_path)
-                    except: pass
+                    except Exception: pass
                     return True, "success" 
                 else:
                     try:
@@ -3191,7 +3296,7 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid: i
                     elif msg_fresh.video and msg_fresh.video.thumbs: thumb = msg_fresh.video.thumbs[0]
                     elif msg_fresh.audio and msg_fresh.audio.thumbs: thumb = msg_fresh.audio.thumbs[0]
                     if thumb: ph_path = await acc.download_media(thumb.file_id, file_name=str(task_folder_path / "thumb.jpg"))
-                except: pass
+                except Exception: pass
 
                 download_success = True
                 break
@@ -3268,7 +3373,7 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid: i
 
     finally:
         try: await asyncio.to_thread(shutil.rmtree, task_folder_path, ignore_errors=True)
-        except: pass
+        except Exception: pass
 
 try:
     from aiohttp import web
@@ -3365,7 +3470,7 @@ async def process_watcher_message(client, message):
                         if "TOO_LONG" in str(e_text):
                             clean_caption = re.sub(r'<[^>]+>', '', clean_caption)[:4000]
                             try: await client.send_message(chat_id=t['dest_id'], text=clean_caption, reply_markup=message.reply_markup, reply_to_message_id=t.get('dest_thread'), disable_web_page_preview=True)
-                            except: pass
+                            except Exception: pass
                 return
 
             original_caption = ""
@@ -3430,7 +3535,7 @@ async def process_watcher_message(client, message):
                             await app.copy_message(chat_id=dest_id, from_chat_id=safe_source_id, message_id=message.id, reply_to_message_id=dest_thread, caption=fallback_cap, reply_markup=message.reply_markup)
                             success = True
                             continue
-                        except: pass
+                        except Exception: pass
                         try:
                             await client.get_chat(dest_id)
                         except Exception:
@@ -3445,7 +3550,7 @@ async def process_watcher_message(client, message):
                                 await client.copy_message(chat_id=dest_id, from_chat_id=chat_id, message_id=message.id, reply_to_message_id=dest_thread, caption=fallback_cap, reply_markup=message.reply_markup)
                                 success = True
                                 continue
-                            except: pass
+                            except Exception: pass
                             try:
                                 await client.forward_messages(chat_id=dest_id, from_chat_id=chat_id, message_ids=message.id, message_thread_id=dest_thread)
                                 success = True
@@ -3470,14 +3575,14 @@ async def process_watcher_message(client, message):
             if not auto_dl:
                 alert_text = f"🚫 **Watcher Skipped (Download OFF)**\n📂 **Source:** `{source_name}` (`{chat_id}`)\n🎯 **Dest:** `{dest_name}`\n🆔 **Msg ID:** `{message.id}`\n*(Fast-copy failed, downloading disabled to save bandwidth!)*"
                 try: await app.send_message(owner_id, alert_text)
-                except: pass
+                except Exception: pass
                 if msg_type in ["Video", "Document"]:
                     await send_log(alert_text)
                 return
 
             notify_text = f"⬇️ **Watcher Alert (Download Mode)**\n📂 **Source:** `{source_name}`\n🎯 **Dest:** `{dest_name}`\n🆔 **Msg ID:** `{message.id}`\n*(Fast-copy failed, starting manual download...)*"
             try: await app.send_message(owner_id, notify_text)
-            except: pass
+            except Exception: pass
             
             await send_log(notify_text)
 
@@ -3539,6 +3644,10 @@ async def main():
 
     await app.start()
     print("🤖 Bot Started")
+    try:
+        await db.init_indexes()
+    except Exception:
+        pass
     
     try:
         public_commands = [
@@ -3632,7 +3741,7 @@ async def main():
     await app.stop()
     for uid, client in USER_CLIENTS.items():
         try: await client.stop()
-        except: pass
+        except Exception: pass
         
 if __name__ == "__main__":
     app.run(main())
