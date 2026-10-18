@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import random
 import psutil
 import time
 import asyncio
@@ -393,6 +394,220 @@ Client.ask = custom_ask
 # --- GLOBAL ACCESS CONTROL GATEKEEPERS (GROUP -2) ---
 # ==============================================================================
 
+
+# ==============================================================================
+# --- 10 ROAST & COMEDY ACCESS DENIED TEMPLATES (CODE BLOCK MONOSPACE) ---
+# ==============================================================================
+UNAUTH_TEMPLATES = [
+    """╔══════════════════════════════════════════════════════╗
+║        ⛔ ACCESS DENIED : BINA LIFAAFE ENTRY ⛔      ║
+╠══════════════════════════════════════════════════════╣
+Arey bhai bhai! Shaadi me bina lifaafe ke ghus gaye?
+Direct rasmalai pe toot pade? Gatekeeper ne pakad liya!
+Ye bot filhaal private VIP list pe chal raha hai.
+
+🚀 BOT KE ASLI JALWE DEKHO (FULL PAISA VASOOL):
+⚡ Normal Channels: Rocket speed instant direct forward!
+🔓 Restricted Content: Auto Download & Re-Upload bypass!
+🧹 Auto-Rename & Cleaner: Faltu sponsor/promo delete!
+🔄 24/7 Live Watcher: Source to destination auto clone.
+💾 100 GB Download: Restricted files ka monthly quota
+   (Bas setup ke liye apna ek email ID dena padega).
+╠══════════════════════════════════════════════════════╣
+💸 Pocket Pinch: Sirf ₹50 / Month (Chai-sutta se sasta!)
+╠══════════════════════════════════════════════════════╣
+👑 Whitelist hona hai? Message Owner:
+👉 https://t.me/lucifermorningstarofficialsss
+╚══════════════════════════════════════════════════════╝""",
+
+    """╔══════════════════════════════════════════════════════╗
+║        🛑 RUKO ZARA, SABAR KARO : ACCESS DENIED 🛑   ║
+╠══════════════════════════════════════════════════════╣
+Arey mitra, pehle thoda paani piyo, lambi saans lo!
+Socha tha bot free hai toh aaj hi poora Telegram ghar le
+jaoge? Dhakka-mukki nahi karne ka, line me lago!
+
+🛠️ YE BEAST BOT KYA KYA KARTA HAI?
+• Normal Channels: Bina delay ke superfast instant forward.
+• Restricted Channels: Background Download & Fresh Upload.
+• Smart Clean-Up: Title se sponsor ads & promo auto-clean!
+• 100 GB/Month Quota: Restricted content download enabled
+  (Setup ke liye personal email ID required hai).
+• 24/7 Channel Watcher: Ek baar lagao, din-raat sync paao.
+╠══════════════════════════════════════════════════════╣
+☕ Price: Sirf ₹50 / Month (Tapri ki 2 chai se bhi sasta!)
+╠══════════════════════════════════════════════════════╣
+🤝 Izzat ke sath access lene ke liye Owner ko ping karo:
+👑 https://t.me/lucifermorningstarofficialsss
+╚══════════════════════════════════════════════════════╝""",
+
+    """╔══════════════════════════════════════════════════════╗
+║        ⛔ ACCESS DENIED : YE SAB DOGLAPAN HAI ⛔     ║
+╠══════════════════════════════════════════════════════╣
+Arey bhai, bina permission bot chalane ka try kar rahe ho?
+Ye sab doglapan hai! Par chinta mat karo, hum deal laye
+hain jisme aapka poora fayda hai.
+
+💼 THE KILLER TECH STACK:
+⚡ Normal Channels: Public channels ka instant fast clone.
+🛡️ Restricted Bypass: Heavy Download & Clean Upload engine
+✂️ Ad-Stripper: Starting ke sponsor & promo auto-remove.
+📦 Turbo Batch: 1 se lekar 10,000 files bulk transfer.
+💾 100 GB Data Download: Restricted files ka monthly quota
+   (Bas setup ke liye apna ek Email ID provide karo).
+╠══════════════════════════════════════════════════════╣
+💰 The Valuation: Sirf ₹50 / Month (Popcorn se bhi sasta!)
+╠══════════════════════════════════════════════════════╣
+👑 Deal done karni hai? Owner ko abhi text bhejo:
+👉 https://t.me/lucifermorningstarofficialsss
+╚══════════════════════════════════════════════════════╝""",
+
+    """╔══════════════════════════════════════════════════════╗
+║        🔒 VIP PRIVATE ACCESS : PERMISSION REQUIRED 🔒 ║
+╠══════════════════════════════════════════════════════╣
+Dost sach batao, ₹50 me aaj kal milta kya hai? Lays me bhi
+nitrogen bhari hoti hai! Par yahan ₹50 me beast bot milega:
+
+🚀 TOP TIER SPECIFICATIONS:
+⏩ Normal Forwarding: Palken jhapkate hi instant transfer!
+📥 Restricted Engine: Safe Download & Upload with no block.
+🧼 Auto Scrubbing: Suru ka promo name aur link delete.
+🔄 Live Watcher: Source se naya post aate hi auto clone.
+💾 100 GB/Mo Download: Restricted content download enabled
+   (Email ID dena zaroori hai configuration ke liye).
+╠══════════════════════════════════════════════════════╣
+🏷️ Subscription: Sirf ₹50 / Month (Chai-sutta kharcha!)
+╠══════════════════════════════════════════════════════╣
+👑 Whitelist karwane ke liye abhi Owner se contact karo:
+🔗 https://t.me/lucifermorningstarofficialsss
+╚══════════════════════════════════════════════════════╝""",
+
+    """╔══════════════════════════════════════════════════════╗
+║        ⛔ ACCESS DENIED : DAYA DARWAZA MAT TODO! ⛔  ║
+╠══════════════════════════════════════════════════════╣
+Kuch toh gadbad hai Daya! Ye user bina VIP pass ke andar
+ghusne ki koshish kar raha hai! System ne lock laga diya!
+
+🔍 FORENSIC REPORT : BOT ME KYA KYA ASSETS HAIN?
+⚡ Normal Channels: Speed engine bina rukaavat fast forward
+🔐 Restricted Locker: Download & Upload se restricted clone
+🎯 Auto Renaming: Sponsor text aur ads ka automatic safaya
+💾 100 GB / Month: Restricted files ka direct download
+   (Apna personal Email ID provide karna padega).
+🤖 24x7 Automation: Auto Channel Watcher on standby.
+╠══════════════════════════════════════════════════════╣
+💵 Faisla: Sirf ₹50 / Month (Chai-sutta se sasta deal)
+╠══════════════════════════════════════════════════════╣
+👑 Case solve karne ke liye Owner ko hazir karo:
+👉 https://t.me/lucifermorningstarofficialsss
+╚══════════════════════════════════════════════════════╝""",
+
+    """╔══════════════════════════════════════════════════════╗
+║        ⚠️ HOLD ON GUEST : ACCESS NOT WHITELISTED ⚠️   ║
+╠══════════════════════════════════════════════════════╣
+Swiggy pe surge charge ₹60 lag jaata hai, aur yahan ₹50 me
+Telegram ka sabse powerful infiltrator bot mil raha hai!
+Par afsos, aapka Telegram ID abhi approved nahi hai.
+
+🍔 MENU OF FEATURES:
+🚀 Normal Channels: Instant 0-second direct bulk forwarding.
+📦 Restricted Channels: Safe Download & Upload processing.
+🧽 Clean Captions: Initial sponsor names automatically gone
+💾 100 GB Download: Restricted files ka monthly quota
+   (Configuration ke liye apna email ID dena hoga).
+📡 Channel Watcher: 24/7 background real-time sync.
+╠══════════════════════════════════════════════════════╣
+💳 Bill Amount: ₹50 / Month Only (Full Pocket Friendly)
+╠══════════════════════════════════════════════════════╣
+📩 VIP Table book karne ke liye Owner ko contact karein:
+👑 https://t.me/lucifermorningstarofficialsss
+╚══════════════════════════════════════════════════════╝""",
+
+    """╔══════════════════════════════════════════════════════╗
+║        ⛔ ACCESS DENIED : ADMIT CARD KAHAN HAI? ⛔   ║
+╠══════════════════════════════════════════════════════╣
+Arey padhaku bhai, exam hall me bina roll number ke entry
+nahi milti! Waise hi ye bot strictly private whitelist pe
+lock hai. Par syllabus dekh lo, full marks aayenge:
+
+📚 PAPER 1 : BOT CAPABILITIES:
+⚡ Normal Channels: Zero delay high-speed instant clone.
+📥 Restricted Streams: Download karke naya post upload.
+✂️ Ad Cut: Shuru ka sponsor name aur promo link clean.
+💾 100 GB Monthly Download: Restricted content allowed
+   (Setup ke liye bas apna ek Email ID submit karna hoga).
+🔄 Auto Watcher: 24/7 non-stop monitoring & clone.
+╠══════════════════════════════════════════════════════╣
+🏷️ Admission Fee: Sirf ₹50 / Month (Chai-sutta se sasta)
+╠══════════════════════════════════════════════════════╣
+👑 Principal (Owner) se signature karwane ke liye click:
+👉 https://t.me/lucifermorningstarofficialsss
+╚══════════════════════════════════════════════════════╝""",
+
+    """╔══════════════════════════════════════════════════════╗
+║        🛑 TC KA CHHAAPA : TICKET DIKHAO BHAI! 🛑     ║
+╠══════════════════════════════════════════════════════╣
+Rajdhani Express me chadhe aur socha bina ticket nikal
+lenge? Hamare automated bot guard ne pakad liya hai!
+Ye train sirf verified VIP passengers ke liye chalti hai.
+
+🚂 ENGINE SPECIFICATIONS:
+⚡ Normal Line: Superfast channels ka instant forwarding.
+🛡️ Heavy Cargo: Restricted channels ka Download & Upload.
+🧹 Clean Track: Title se sponsor ads & rubbish auto-clean!
+💾 100 GB Pass: Restricted files ka monthly download quota
+   (Seat reservation ke liye apna email ID dena hoga).
+🔄 Auto-Pilot: 24/7 live channel watcher integration.
+╠══════════════════════════════════════════════════════╣
+🎟️ Monthly Ticket: Sirf ₹50 / Month (Platform ticket rate!)
+╠══════════════════════════════════════════════════════╣
+👑 TTE (Owner) se ticket lene ke liye abhi sampark karein:
+🔗 https://t.me/lucifermorningstarofficialsss
+╚══════════════════════════════════════════════════════╝""",
+
+    """╔══════════════════════════════════════════════════════╗
+║        ⛔ ACCESS DENIED : SCREEN LIMIT REACHED ⛔    ║
+╠══════════════════════════════════════════════════════╣
+Aise bina puche bot me ghus rahe ho jaise doston se
+Netflix ka password maang ke 4K me stream chala li ho!
+Par ye bot exclusive private members ke liye reserved hai.
+
+🍿 PREMIER SHOW HIGHLIGHTS:
+⏩ Normal Channels: Bullet speed instant direct forward.
+🔐 Restricted Channels: Automated Download & Upload pipeline.
+🧼 Auto Ad-Block: Sponsor names & spam lines auto deleted.
+💾 100 GB Monthly Download: Restricted videos/files quota
+   (Bas setup ke liye apna ek Email ID provide karo).
+🤖 Auto Sync: Live channel watcher on duty 24/7.
+╠══════════════════════════════════════════════════════╣
+🎟️ Monthly Pass: Sirf ₹50 / Month (Chai-sutta kharcha!)
+╠══════════════════════════════════════════════════════╣
+👑 VIP Subscription lene ke liye Owner ko ping karein:
+👉 https://t.me/lucifermorningstarofficialsss
+╚══════════════════════════════════════════════════════╝""",
+
+    """╔══════════════════════════════════════════════════════╗
+║        ⛔ ACCESS DENIED : BAAP SE BAKCHODI NAHI ⛔   ║
+╠══════════════════════════════════════════════════════╣
+"Hume laga sabka badla lene aaye ho, par tum toh bina
+permission ke command maarne nikal pade!"
+Maaf karna lala, bina whitelist huye bot nahi hilega!
+
+💣 ASLI ASLA DEKHO BOT KA:
+⚡ Normal Forward: Goli ki speed me instant direct clone.
+📥 Restricted Forward: Download & Upload se har lock khule!
+🧹 Auto-Rename: Shuru ka sponsor name jad se gayab.
+💾 100 GB Download: Restricted files ka monthly quota
+   (Iske liye apna personal email ID dena padega).
+🔄 24/7 Watcher: Bina hath lagaye automatic clone chalu.
+╠══════════════════════════════════════════════════════╣
+💰 Hissa: Sirf ₹50 / Month (Chai-sutta se bhi sasta plan!)
+╠══════════════════════════════════════════════════════╣
+👑 Sarkar (Owner) ke aage arzi lagane ke liye click karo:
+👉 https://t.me/lucifermorningstarofficialsss
+╚══════════════════════════════════════════════════════╝"""
+]
+
 @app.on_message(group=-2)
 async def auth_gatekeeper(client: Client, message: Message):
     if not AUTH_USERS:
@@ -404,15 +619,33 @@ async def auth_gatekeeper(client: Client, message: Message):
         message.stop_propagation()
         now = time.time()
         last_sent = UNAUTH_NOTIFY_CACHE.get(user_id, 0)
-        if now - last_sent > 60:
+        is_start = bool(message.text and message.text.strip().startswith('/start'))
+        # Immediate response on /start command; throttle generic message spam to 10s
+        if is_start or (now - last_sent > 10):
             UNAUTH_NOTIFY_CACHE[user_id] = now
             try:
+                custom_override = os.environ.get("ACCESS_DENIED_MESSAGE", "").strip()
+                if custom_override:
+                    body = custom_override
+                else:
+                    body = random.choice(UNAUTH_TEMPLATES)
+
+                reply_parts = [
+                    f"<pre>{body}</pre>",
+                    "",
+                    f"🆔 <b>Your Telegram User ID:</b> <code>{user_id}</code>",
+                    '👑 <b>Owner:</b> <a href="https://t.me/lucifermorningstarofficialsss">Lucifer Morningstar</a>',
+                    "<i>(Click button below or copy your ID and message the owner to get whitelisted)</i>"
+                ]
+                reply_text = chr(10).join(reply_parts)
+                markup = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("👑 Contact Owner (Get Access)", url="https://t.me/lucifermorningstarofficialsss")]
+                ])
                 await message.reply(
-                    "⛔ <b>Access Denied!</b>\n\n"
-                    "This is a private automation bot restricted strictly to authorized administrators.\n\n"
-                    f"🆔 <b>Your User ID:</b> <code>{user_id}</code>\n"
-                    "<i>Please contact the bot administrator if you require access.</i>",
-                    quote=True
+                    reply_text,
+                    quote=True,
+                    disable_web_page_preview=True,
+                    reply_markup=markup
                 )
             except Exception:
                 pass
