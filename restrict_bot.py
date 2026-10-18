@@ -417,7 +417,7 @@ Ye bot filhaal private VIP list pe chal raha hai.
 💸 Pocket Pinch: Sirf ₹50 / Month (Chai-sutta se sasta!)
 ╠══════════════════════════════════════════════════════╣
 👑 Whitelist hona hai? Message Owner:
-👉 https://t.me/lucifermorningstarofficialsss
+👉 @lucifermorningstarofficialsss
 ╚══════════════════════════════════════════════════════╝""",
 
     """╔══════════════════════════════════════════════════════╗
@@ -438,7 +438,7 @@ jaoge? Dhakka-mukki nahi karne ka, line me lago!
 ☕ Price: Sirf ₹50 / Month (Tapri ki 2 chai se bhi sasta!)
 ╠══════════════════════════════════════════════════════╣
 🤝 Izzat ke sath access lene ke liye Owner ko ping karo:
-👑 https://t.me/lucifermorningstarofficialsss
+👑 @lucifermorningstarofficialsss
 ╚══════════════════════════════════════════════════════╝""",
 
     """╔══════════════════════════════════════════════════════╗
@@ -459,7 +459,7 @@ hain jisme aapka poora fayda hai.
 💰 The Valuation: Sirf ₹50 / Month (Popcorn se bhi sasta!)
 ╠══════════════════════════════════════════════════════╣
 👑 Deal done karni hai? Owner ko abhi text bhejo:
-👉 https://t.me/lucifermorningstarofficialsss
+👉 @lucifermorningstarofficialsss
 ╚══════════════════════════════════════════════════════╝""",
 
     """╔══════════════════════════════════════════════════════╗
@@ -479,7 +479,7 @@ nitrogen bhari hoti hai! Par yahan ₹50 me beast bot milega:
 🏷️ Subscription: Sirf ₹50 / Month (Chai-sutta kharcha!)
 ╠══════════════════════════════════════════════════════╣
 👑 Whitelist karwane ke liye abhi Owner se contact karo:
-🔗 https://t.me/lucifermorningstarofficialsss
+🔗 @lucifermorningstarofficialsss
 ╚══════════════════════════════════════════════════════╝""",
 
     """╔══════════════════════════════════════════════════════╗
@@ -499,7 +499,7 @@ ghusne ki koshish kar raha hai! System ne lock laga diya!
 💵 Faisla: Sirf ₹50 / Month (Chai-sutta se sasta deal)
 ╠══════════════════════════════════════════════════════╣
 👑 Case solve karne ke liye Owner ko hazir karo:
-👉 https://t.me/lucifermorningstarofficialsss
+👉 @lucifermorningstarofficialsss
 ╚══════════════════════════════════════════════════════╝""",
 
     """╔══════════════════════════════════════════════════════╗
@@ -520,7 +520,7 @@ Par afsos, aapka Telegram ID abhi approved nahi hai.
 💳 Bill Amount: ₹50 / Month Only (Full Pocket Friendly)
 ╠══════════════════════════════════════════════════════╣
 📩 VIP Table book karne ke liye Owner ko contact karein:
-👑 https://t.me/lucifermorningstarofficialsss
+👑 @lucifermorningstarofficialsss
 ╚══════════════════════════════════════════════════════╝""",
 
     """╔══════════════════════════════════════════════════════╗
@@ -541,7 +541,7 @@ lock hai. Par syllabus dekh lo, full marks aayenge:
 🏷️ Admission Fee: Sirf ₹50 / Month (Chai-sutta se sasta)
 ╠══════════════════════════════════════════════════════╣
 👑 Principal (Owner) se signature karwane ke liye click:
-👉 https://t.me/lucifermorningstarofficialsss
+👉 @lucifermorningstarofficialsss
 ╚══════════════════════════════════════════════════════╝""",
 
     """╔══════════════════════════════════════════════════════╗
@@ -562,7 +562,7 @@ Ye train sirf verified VIP passengers ke liye chalti hai.
 🎟️ Monthly Ticket: Sirf ₹50 / Month (Platform ticket rate!)
 ╠══════════════════════════════════════════════════════╣
 👑 TTE (Owner) se ticket lene ke liye abhi sampark karein:
-🔗 https://t.me/lucifermorningstarofficialsss
+🔗 @lucifermorningstarofficialsss
 ╚══════════════════════════════════════════════════════╝""",
 
     """╔══════════════════════════════════════════════════════╗
@@ -583,7 +583,7 @@ Par ye bot exclusive private members ke liye reserved hai.
 🎟️ Monthly Pass: Sirf ₹50 / Month (Chai-sutta kharcha!)
 ╠══════════════════════════════════════════════════════╣
 👑 VIP Subscription lene ke liye Owner ko ping karein:
-👉 https://t.me/lucifermorningstarofficialsss
+👉 @lucifermorningstarofficialsss
 ╚══════════════════════════════════════════════════════╝""",
 
     """╔══════════════════════════════════════════════════════╗
@@ -604,7 +604,7 @@ Maaf karna lala, bina whitelist huye bot nahi hilega!
 💰 Hissa: Sirf ₹50 / Month (Chai-sutta se bhi sasta plan!)
 ╠══════════════════════════════════════════════════════╣
 👑 Sarkar (Owner) ke aage arzi lagane ke liye click karo:
-👉 https://t.me/lucifermorningstarofficialsss
+👉 @lucifermorningstarofficialsss
 ╚══════════════════════════════════════════════════════╝"""
 ]
 
@@ -634,7 +634,7 @@ async def auth_gatekeeper(client: Client, message: Message):
                     f"<pre>{body}</pre>",
                     "",
                     f"🆔 <b>Your Telegram User ID:</b> <code>{user_id}</code>",
-                    '👑 <b>Owner:</b> <a href="https://t.me/lucifermorningstarofficialsss">Lucifer Morningstar</a>',
+                    '👑 <b>Owner:</b> @lucifermorningstarofficialsss',
                     "<i>(Click button below or copy your ID and message the owner to get whitelisted)</i>"
                 ]
                 reply_text = chr(10).join(reply_parts)
