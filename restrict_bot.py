@@ -621,9 +621,11 @@ async def auth_gatekeeper(client: Client, message: Message):
         message.stop_propagation()
         now = time.time()
         last_sent = UNAUTH_NOTIFY_CACHE.get(user_id, 0)
-        is_start = bool(message.text and message.text.strip().startswith('/start'))
-        # Immediate response on /start command; throttle generic message spam to 10s
-        if is_start or (now - last_sent > 10):
+        raw_msg = (message.text or message.caption or "").strip()
+        is_start = raw_msg.startswith('/start')
+        
+        # Immediate response on EVERY /start command without delay; throttle generic spam to 5s
+        if is_start or (now - last_sent > 5):
             UNAUTH_NOTIFY_CACHE[user_id] = now
             try:
                 custom_override = os.environ.get("ACCESS_DENIED_MESSAGE", "").strip()
@@ -643,14 +645,22 @@ async def auth_gatekeeper(client: Client, message: Message):
                 markup = InlineKeyboardMarkup([
                     [InlineKeyboardButton("👑 Contact Owner (Get Access)", url="https://t.me/lucifermorningstarofficialsss")]
                 ])
-                await message.reply(
-                    reply_text,
-                    quote=True,
-                    disable_web_page_preview=True,
-                    reply_markup=markup
-                )
-            except Exception:
-                pass
+                try:
+                    await message.reply(
+                        reply_text,
+                        quote=True,
+                        disable_web_page_preview=True,
+                        reply_markup=markup
+                    )
+                except Exception:
+                    await client.send_message(
+                        chat_id=message.chat.id,
+                        text=reply_text,
+                        disable_web_page_preview=True,
+                        reply_markup=markup
+                    )
+            except Exception as e:
+                print(f"[Gatekeeper Error] Failed to send paywall notice: {e}")
 
 @app.on_callback_query(group=-2)
 async def callback_auth_gatekeeper(client: Client, query: CallbackQuery):
