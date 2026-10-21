@@ -190,7 +190,7 @@ HELP_TXT = """<b>📚 BOT'S USAGE GUIDE</b>
 class Database:
     def __init__(self, uri, database_name):
         if uri:
-            self._client = motor.motor_asyncio.AsyncIOMotorClient(uri)
+            self._client = motor.motor_asyncio.AsyncIOMotorClient(uri, serverSelectionTimeoutMS=5000)
             self.db = self._client[database_name or "restrict_bot"]
             self.col = self.db.users
         else:
@@ -272,13 +272,23 @@ class Database:
         )
 
     async def add_user(self, id, name):
-        user = self.new_user(id, name)
-        if not await self.is_user_exist(id):
-            await self.col.insert_one(user)
+        if not self.col:
+            return
+        try:
+            user = self.new_user(id, name)
+            if not await self.is_user_exist(id):
+                await self.col.insert_one(user)
+        except Exception:
+            pass
 
     async def is_user_exist(self, id):
-        user = await self.col.find_one({'id':int(id)})
-        return bool(user)
+        if not self.col:
+            return False
+        try:
+            user = await self.col.find_one({'id':int(id)})
+            return bool(user)
+        except Exception:
+            return False
 
     async def total_users_count(self):
         count = await self.col.count_documents({})
@@ -703,8 +713,9 @@ async def auth_gatekeeper(client: Client, message: Message):
                     if owner_username != "lucifermorningstarofficialsss":
                         body = body.replace("@lucifermorningstarofficialsss", f"@{owner_username}")
 
+                escaped_body = html.escape(body)
                 reply_parts = [
-                    f"<pre>{body}</pre>",
+                    f"<pre>{escaped_body}</pre>",
                     "",
                     f"🆔 <b>Your Telegram User ID:</b> <code>{user_id}</code>",
                     f'👑 <b>Owner:</b> @{owner_username}',
@@ -722,14 +733,33 @@ async def auth_gatekeeper(client: Client, message: Message):
                         reply_markup=markup
                     )
                 except Exception:
-                    await client.send_message(
-                        chat_id=message.chat.id,
-                        text=reply_text,
-                        disable_web_page_preview=True,
-                        reply_markup=markup
-                    )
+                    try:
+                        await client.send_message(
+                            chat_id=message.chat.id,
+                            text=reply_text,
+                            disable_web_page_preview=True,
+                            reply_markup=markup
+                        )
+                    except Exception:
+                        # Plaintext fallback that never fails entity parsing
+                        plain_body = f"{body}\n\n🆔 Your Telegram User ID: {user_id}\n👑 Owner: @{owner_username}\n(Contact your bot administrator to get whitelisted)"
+                        await client.send_message(
+                            chat_id=message.chat.id,
+                            text=plain_body,
+                            disable_web_page_preview=True,
+                            reply_markup=markup,
+                            parse_mode=None
+                        )
             except Exception as e:
                 print(f"[Gatekeeper Error] Failed to send paywall notice: {e}")
+                try:
+                    await client.send_message(
+                        chat_id=message.chat.id,
+                        text=f"⛔ Access Denied!\n\nThis bot is private.\n🆔 Your User ID: {user_id}\nPlease contact the administrator.",
+                        parse_mode=None
+                    )
+                except Exception:
+                    pass
         
         # Stop propagation only AFTER sending notice so message actually arrives
         message.stop_propagation()
@@ -1636,16 +1666,21 @@ async def send_start(client: Client, message: Message):
         return await message.reply(f'⛔ <b>Access Denied!</b>\n\nThis bot is private and restricted to authorized administrators.\n\n🆔 <b>Your User ID:</b> <code>{user_id}</code>', quote=True)
     user_name = message.from_user.first_name
     
-    try:
-        if not await db.is_user_exist(user_id):
-            await db.add_user(user_id, user_name)
-            print(f"New user {user_id} saved to database.") 
-    except Exception as e:
-        print(f"Failed to save user {user_id}: {e}")
+    # Save user non-blocking in background so start command responds instantly
+    async def _save_user_bg():
+        try:
+            if not await db.is_user_exist(user_id):
+                await db.add_user(user_id, user_name)
+                print(f"New user {user_id} saved to database.") 
+        except Exception as e:
+            print(f"Failed to save user {user_id}: {e}")
 
+    asyncio.create_task(_save_user_bg())
+
+    user_mention = getattr(message.from_user, "mention", None) or html.escape(message.from_user.first_name or "User")
     welcome_video_url = "https://holy-field-055f.lucifermotivational.workers.dev/0:/Google%20Flow%20%E2%80%93%20Sept%2004%20-%2016-28.mp4"
     welcome_text = (
-        f"<b>👋 Hi {message.from_user.mention}, I am Save Restricted Content Bot.</b>\n\n"
+        f"<b>👋 Hi {user_mention}, I am Save Restricted Content Bot.</b>\n\n"
         "<b>For downloading restricted content /login first.</b>\n\n"
         "<b>Know how to use bot by - /help</b>"
     )
@@ -1664,12 +1699,26 @@ async def send_start(client: Client, message: Message):
             reply_to_message_id=message.id
         )
     except Exception as e:
-        await client.send_message(
-            chat_id=message.chat.id,
-            text=welcome_text,
-            reply_markup=InlineKeyboardMarkup(buttons),
-            reply_to_message_id=message.id
-        )
+        try:
+            await client.send_message(
+                chat_id=message.chat.id,
+                text=welcome_text,
+                reply_markup=InlineKeyboardMarkup(buttons),
+                reply_to_message_id=message.id
+            )
+        except Exception:
+            plain_welcome = (
+                f"👋 Hi {message.from_user.first_name or 'User'}, I am Save Restricted Content Bot.\n\n"
+                "For downloading restricted content /login first.\n\n"
+                "Know how to use bot by - /help"
+            )
+            await client.send_message(
+                chat_id=message.chat.id,
+                text=plain_welcome,
+                reply_markup=InlineKeyboardMarkup(buttons),
+                reply_to_message_id=message.id,
+                parse_mode=None
+            )
 
 @app.on_message(filters.command(["help"]) & filters.private & ~filters.bot)
 async def send_help(client: Client, message: Message):
