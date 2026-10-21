@@ -114,23 +114,35 @@ OWNER_ID = int(owner_str) if owner_str.isdigit() else 0
 
 ADMINS = _parse_env_ids("ADMINS", "ADMIN", "ADMIN_ID", "ADMIN_IDS")
 SUDOS = _parse_env_ids("SUDOS", "SUDO", "SUDO_USERS", "SUDO_USER")
-AUTH_USERS_EXTRA = _parse_env_ids("AUTH_USERS", "AUTH_USER")
+AUTH_USERS_EXTRA = _parse_env_ids("AUTH_USERS", "AUTH_USER", "AUTH_USERS_IDS", "AUTHORIZED_USERS")
 
 if OWNER_ID and OWNER_ID not in ADMINS:
     ADMINS.append(OWNER_ID)
 
-# Master set of all authorized users (Owner, Admins, Sudos)
+# Super-administrators with unrestricted privileges (Owner, Admins, Sudos)
+SUPER_ADMINS = set(ADMINS + SUDOS)
+if OWNER_ID:
+    SUPER_ADMINS.add(OWNER_ID)
+
+# Master set of all authorized users allowed to interact with the bot (Admins + Sudos + Authorized Clients)
 AUTH_USERS = set(ADMINS + SUDOS + AUTH_USERS_EXTRA)
 if OWNER_ID:
     AUTH_USERS.add(OWNER_ID)
 
 UNAUTH_NOTIFY_CACHE = {}  # user_id -> timestamp (throttle access denial notices)
 
+def is_admin(user_id: int) -> bool:
+    if not user_id:
+        return False
+    if not SUPER_ADMINS and not AUTH_USERS:
+        return True
+    return user_id in SUPER_ADMINS
+
 def is_authorized(user_id: int) -> bool:
     if not user_id:
         return False
     if not AUTH_USERS:
-        # If no admins or owner configured in environment, allow open access
+        # If no admins or authorized users configured in environment, allow open access
         return True
     return user_id in AUTH_USERS
 
@@ -681,22 +693,26 @@ async def auth_gatekeeper(client: Client, message: Message):
         if is_start or (now - last_sent > 5):
             UNAUTH_NOTIFY_CACHE[user_id] = now
             try:
+                owner_username = os.environ.get("OWNER_USERNAME", "").strip().lstrip("@") or "lucifermorningstarofficialsss"
+                owner_url = f"https://t.me/{owner_username}"
                 custom_override = os.environ.get("ACCESS_DENIED_MESSAGE", "").strip()
                 if custom_override:
                     body = custom_override
                 else:
                     body = random.choice(UNAUTH_TEMPLATES)
+                    if owner_username != "lucifermorningstarofficialsss":
+                        body = body.replace("@lucifermorningstarofficialsss", f"@{owner_username}")
 
                 reply_parts = [
                     f"<pre>{body}</pre>",
                     "",
                     f"🆔 <b>Your Telegram User ID:</b> <code>{user_id}</code>",
-                    '👑 <b>Owner:</b> @lucifermorningstarofficialsss',
+                    f'👑 <b>Owner:</b> @{owner_username}',
                     "<i>(Click button below or copy your ID and message the owner to get whitelisted)</i>"
                 ]
                 reply_text = chr(10).join(reply_parts)
                 markup = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("👑 Contact Owner (Get Access)", url="https://t.me/lucifermorningstarofficialsss")]
+                    [InlineKeyboardButton("👑 Contact Owner (Get Access)", url=owner_url)]
                 ])
                 try:
                     await message.reply(
@@ -1671,17 +1687,24 @@ async def send_help(client: Client, message: Message):
         disable_web_page_preview=True
     )
 
-@app.on_message(filters.command(["toggledl"]) & (filters.user(ADMINS) | filters.user(SUDOS)))
+@app.on_message(filters.command(["toggledl", "toggledownl"]) & filters.private & ~filters.bot)
 async def toggle_dl_command(client: Client, message: Message):
+    if not message.chat or message.chat.type != enums.ChatType.PRIVATE:
+        return
+    user_id = message.from_user.id if message.from_user else 0
+    if not is_authorized(user_id):
+        return await message.reply('⛔ <b>Access Denied:</b> You are not authorized to use this bot.', quote=True)
     new_status = await db.toggle_dl_status()
     if new_status:
         await message.reply("✅ **Auto-Download is now ON.**\nBot will download files if direct fast-copy fails.")
     else:
         await message.reply("🚫 **Auto-Download is now OFF.**\nBot will ONLY direct-forward. If forwarding fails (restricted or floodwait), it will simply SKIP the file to save bandwidth.")
 
-@app.on_message(filters.command(["tasks", "progress"]) & filters.private)
+@app.on_message(filters.command(["task", "tasks", "progress"]) & filters.private & ~filters.bot)
 async def task_refresh_handler(client: Client, message: Message):
-    user_id = message.from_user.id
+    if not message.chat or message.chat.type != enums.ChatType.PRIVATE:
+        return
+    user_id = message.from_user.id if message.from_user else 0
     if not is_authorized(user_id):
         return await message.reply('⛔ <b>Access Denied:</b> You are not authorized to use this bot.', quote=True)
     user_tasks = ACTIVE_PROCESSES.get(user_id, {})
@@ -1813,8 +1836,13 @@ async def close_menu(client, query):
     except Exception:
         await query.answer("Menu closed.")
 
-@app.on_message(filters.command(["pixel"]) & (filters.user(ADMINS) | filters.user(SUDOS)))
+@app.on_message(filters.command(["pixel"]) & filters.private & ~filters.bot)
 async def pixel_bypass_handler(client: Client, message: Message):
+    if not message.chat or message.chat.type != enums.ChatType.PRIVATE:
+        return
+    user_id = message.from_user.id if message.from_user else 0
+    if not is_authorized(user_id):
+        return await message.reply('⛔ <b>Access Denied:</b> You are not authorized to use this bot.', quote=True)
     if len(message.command) < 2:
         return await message.reply(
             "**Usage:**\n`/pixel https://pixeldrain.com/u/xxxx`\n\n"
@@ -1850,8 +1878,13 @@ async def pixel_bypass_handler(client: Client, message: Message):
     
     await message.reply(reply_text, disable_web_page_preview=True)
 
-@app.on_message(filters.command(["status"]) & (filters.user(ADMINS) | filters.user(SUDOS)))
+@app.on_message(filters.command(["status"]) & filters.private & ~filters.bot)
 async def status_style_handler(client, message):
+    if not message.chat or message.chat.type != enums.ChatType.PRIVATE:
+        return
+    user_id = message.from_user.id if message.from_user else 0
+    if not is_admin(user_id):
+        return await message.reply("⛔ <b>Access Denied:</b> This command is restricted to administrators.", quote=True)
     uptime_seconds = int(time.time() - BOT_START_TIME)
     uptime_str = get_readable_time(uptime_seconds)
     mem = psutil.virtual_memory().percent
@@ -1887,8 +1920,13 @@ async def status_style_handler(client, message):
     )
     await message.reply(msg, quote=True)
     
-@app.on_message(filters.command(["log"]) & (filters.user(ADMINS) | filters.user(SUDOS)))
+@app.on_message(filters.command(["log"]) & filters.private & ~filters.bot)
 async def send_log_handler(client: Client, message: Message):
+    if not message.chat or message.chat.type != enums.ChatType.PRIVATE:
+        return
+    user_id = message.from_user.id if message.from_user else 0
+    if not is_admin(user_id):
+        return await message.reply("⛔ <b>Access Denied:</b> This command is restricted to administrators.", quote=True)
     if os.path.exists("bot.log"):
         await message.reply_document("bot.log", caption="📄 **Bot Logs**\n(Updates automatically)")
     else:
@@ -2024,7 +2062,7 @@ async def bot_stats_handler(client: Client, message: Message):
     if not message.chat or message.chat.type != enums.ChatType.PRIVATE:
         return
     user_id = message.from_user.id if message.from_user else 0
-    if not is_authorized(user_id):
+    if not is_admin(user_id):
         return await message.reply("⛔ <b>Access Denied:</b> This command is restricted to administrators.", quote=True)
     
     wait = await message.reply("📊 <b>Retrieving royal system statistics...</b>", quote=True)
@@ -2034,8 +2072,8 @@ async def bot_stats_handler(client: Client, message: Message):
 @app.on_callback_query(filters.regex(r"^botstats_p:(\d+)"))
 async def bot_stats_page_callback(client: Client, query: CallbackQuery):
     user_id = query.from_user.id if query.from_user else 0
-    if not is_authorized(user_id):
-        return await query.answer("⛔ Access Denied: You are not authorized to view bot stats.", show_alert=True)
+    if not is_admin(user_id):
+        return await query.answer("⛔ Access Denied: This feature is restricted to administrators.", show_alert=True)
     
     try:
         page = int(query.matches[0].group(1))
@@ -2261,12 +2299,17 @@ async def broadcast_messages(user_id, message):
     except Exception as e:
         return False, "Error"
 
-@app.on_message(filters.command("broadcast") & filters.user(ADMINS) & filters.reply)
+@app.on_message(filters.command("broadcast") & filters.private & ~filters.bot)
 async def broadcast(bot, message):
+    if not message.chat or message.chat.type != enums.ChatType.PRIVATE:
+        return
+    user_id = message.from_user.id if message.from_user else 0
+    if not is_admin(user_id):
+        return await message.reply("⛔ <b>Access Denied:</b> This command is restricted to administrators.", quote=True)
+    if not message.reply_to_message:
+        return await message.reply_text("**Reply This Command To Your Broadcast Message**")
     users = await db.get_all_users()
     b_msg = message.reply_to_message
-    if not b_msg:
-        return await message.reply_text("**Reply This Command To Your Broadcast Message**")
     sts = await message.reply_text(text='Broadcasting your messages...')
     start_time = time.time()
     total_users = await db.total_users_count()
@@ -3320,7 +3363,7 @@ async def start_task_final(client: Client, message_context: Message, task_data: 
         await send_log("🚨 **Critical:** Disk Space Low (Under 500MB). Tasks rejected.")
         return
 
-    if user_id not in ADMINS and batch_temp.ACTIVE_TASKS[user_id] >= MAX_CONCURRENT_TASKS_PER_USER:
+    if user_id not in SUPER_ADMINS and batch_temp.ACTIVE_TASKS.get(user_id, 0) >= MAX_CONCURRENT_TASKS_PER_USER:
         TASK_QUEUE[user_id].append({
             "client": client,
             "message": message_context,
@@ -4360,7 +4403,7 @@ async def main():
 
         await app.set_bot_commands(public_commands, scope=BotCommandScopeDefault())
 
-        all_admins = set(ADMINS + SUDOS)
+        all_admins = set(SUPER_ADMINS)
         
         for admin_id in all_admins:
             try:
