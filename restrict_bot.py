@@ -659,12 +659,17 @@ Maaf karna lala, bina whitelist huye bot nahi hilega!
 ╚══════════════════════════════════════════════════════╝"""
 ]
 
-@app.on_message(group=-2)
+@app.on_message(filters.private & ~filters.bot, group=-2)
 async def auth_gatekeeper(client: Client, message: Message):
     if not AUTH_USERS:
         return
+    # STRICT CHAT-TYPE GUARD: Never intercept or reply in channels, groups, or supergroups!
+    if not message.chat or message.chat.type != enums.ChatType.PRIVATE:
+        return
+    if getattr(message, "service", False) or getattr(message, "empty", False):
+        return
     user_id = message.from_user.id if message.from_user else 0
-    if not user_id:
+    if not user_id or getattr(message.from_user, "is_bot", False):
         return
     if not is_authorized(user_id):
         now = time.time()
@@ -717,7 +722,12 @@ async def auth_gatekeeper(client: Client, message: Message):
 async def callback_auth_gatekeeper(client: Client, query: CallbackQuery):
     if not AUTH_USERS:
         return
+    # Only enforce gatekeeper on private chat callbacks
+    if query.message and query.message.chat and query.message.chat.type != enums.ChatType.PRIVATE:
+        return
     user_id = query.from_user.id if query.from_user else 0
+    if not user_id or getattr(query.from_user, "is_bot", False):
+        return
     if not is_authorized(user_id):
         try:
             await query.answer("⛔ Access Denied: You are not authorized to use this bot.", show_alert=True)
@@ -1599,9 +1609,13 @@ async def test_destination_access(client: Client, chat_id, thread_id=None):
     except Exception as e:
         return False, str(e)
         
-@app.on_message(filters.command(["start"]) & (filters.private | filters.group))
+@app.on_message(filters.command(["start"]) & filters.private & ~filters.bot)
 async def send_start(client: Client, message: Message):
-    user_id = message.from_user.id
+    if not message.chat or message.chat.type != enums.ChatType.PRIVATE:
+        return
+    user_id = message.from_user.id if message.from_user else 0
+    if not user_id or getattr(message.from_user, "is_bot", False):
+        return
     if not is_authorized(user_id):
         return await message.reply(f'⛔ <b>Access Denied!</b>\n\nThis bot is private and restricted to authorized administrators.\n\n🆔 <b>Your User ID:</b> <code>{user_id}</code>', quote=True)
     user_name = message.from_user.first_name
@@ -1641,9 +1655,13 @@ async def send_start(client: Client, message: Message):
             reply_to_message_id=message.id
         )
 
-@app.on_message(filters.command(["help"]) & (filters.private | filters.group))
+@app.on_message(filters.command(["help"]) & filters.private & ~filters.bot)
 async def send_help(client: Client, message: Message):
+    if not message.chat or message.chat.type != enums.ChatType.PRIVATE:
+        return
     user_id = message.from_user.id if message.from_user else 0
+    if not user_id or getattr(message.from_user, "is_bot", False):
+        return
     if not is_authorized(user_id):
         return await message.reply('⛔ <b>Access Denied:</b> You are not authorized to use this bot.', quote=True)
     await client.send_message(
@@ -1675,9 +1693,13 @@ async def task_refresh_handler(client: Client, message: Message):
         info["needs_refresh"] = True
     await message.reply("✅ **Refreshing... Your live progress message will pop up again shortly!**")
 
-@app.on_message(filters.command(["cancel"]) & (filters.private | filters.group))
+@app.on_message(filters.command(["cancel"]) & filters.private & ~filters.bot)
 async def send_cancel(client: Client, message: Message):
-    user_id = message.from_user.id
+    if not message.chat or message.chat.type != enums.ChatType.PRIVATE:
+        return
+    user_id = message.from_user.id if message.from_user else 0
+    if not user_id or getattr(message.from_user, "is_bot", False):
+        return
     if not is_authorized(user_id):
         return await message.reply('⛔ <b>Access Denied:</b> You are not authorized to use this bot.', quote=True)
 
@@ -1997,8 +2019,10 @@ async def build_bot_stats_ui(page: int = 1, page_size: int = 10):
     markup = InlineKeyboardMarkup(buttons)
     return stats_msg, markup
 
-@app.on_message(filters.command(["botstats"]))
+@app.on_message(filters.command(["botstats"]) & filters.private & ~filters.bot)
 async def bot_stats_handler(client: Client, message: Message):
+    if not message.chat or message.chat.type != enums.ChatType.PRIVATE:
+        return
     user_id = message.from_user.id if message.from_user else 0
     if not is_authorized(user_id):
         return await message.reply("⛔ <b>Access Denied:</b> This command is restricted to administrators.", quote=True)
@@ -2489,11 +2513,15 @@ async def save(client: Client, message: Message):
         quote=True
     )
     
-@app.on_message(filters.command(["dl"]) & (filters.private | filters.group))
+@app.on_message(filters.command(["dl"]) & (filters.private | filters.group) & ~filters.bot)
 async def dl_handler(client: Client, message: Message):
-    user_id = message.from_user.id
+    user_id = message.from_user.id if message.from_user else 0
+    if not user_id or getattr(message.from_user, "is_bot", False):
+        return
     if not is_authorized(user_id):
-        return await message.reply('⛔ <b>Access Denied:</b> You are not authorized to use this bot.', quote=True)
+        if message.chat and message.chat.type == enums.ChatType.PRIVATE:
+            return await message.reply('⛔ <b>Access Denied:</b> You are not authorized to use this bot.', quote=True)
+        return
     link_text = ""
     
     reply = message.reply_to_message
@@ -4177,6 +4205,10 @@ async def process_watcher_message(client, message):
                 for t in targets:
                     success = False
                     dest_id = t['dest_id']
+                    try:
+                        dest_id = int(dest_id)
+                    except (ValueError, TypeError):
+                        pass
                     dest_thread = t.get('dest_thread')
                     
                     # 🚀 EXACT MEDIA WATCHER FAST FORWARD CLONE
