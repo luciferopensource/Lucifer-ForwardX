@@ -377,6 +377,10 @@ Every configuration parameter is derived directly from the application source co
 | `/watchers` | `/list` | Private Chat | `/watchers` | Lists all active watchers with source, filters, formats, and targets. |
 | `/removetarget`| `/remove_target` | Private Chat | `/removetarget <src> <dst>` | Removes a specific destination channel from an active watcher. |
 | `/removesource`| `/unwatch` | Private Chat | `/unwatch <source_id>` | Terminates an entire watcher pipeline for a given source channel. |
+| `/addsourcechannel` | `/addsource` | Private Chat | `/addsourcechannel [ID/Link]` | Registers and auto-names a source channel in persistent memory. |
+| `/adddestinationchannel` | `/adddest` | Private Chat | `/adddestinationchannel [ID/Link]` | Validates admin write permissions and saves a destination channel. |
+| `/viewsourcechannels` | `/viewsources` | Private Chat | `/viewsourcechannels` | Interactive 10-per-page explorer for saved source channels with quick-watch. |
+| `/viewdestinationchannels` | `/viewdest` | Private Chat | `/viewdestinationchannels` | Interactive 10-per-page explorer for saved destination channels with deletion. |
 | `/tasks` | `/progress`| Private Chat | `/tasks` | Refreshes and re-displays active progress cards for ongoing tasks. |
 | `/cancel` | — | All Users | `/cancel` | Opens interactive menu to terminate specific tasks or all user tasks. |
 | `/login` | — | Private Chat | `/login` | Interactive phone login wizard generating a secure Pyrogram Userbot session. |
@@ -417,7 +421,7 @@ Every configuration parameter is derived directly from the application source co
 ### 🛰️ `/watch` — LIVE SURVEILLANCE & AUTO-FORWARDER
 ◈━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◈
 * **Purpose:** Installs a permanent 24/7 background watcher on a source channel or forum topic.
-* **Syntax:** `/watch https://t.me/channel_username/1` or `/watch https://t.me/c/1234567890/1`
+* **Syntax:** `/watch` *(select from saved source channels)* or `/watch <Link>`
 * **Access:** Private chat only.
 * **Interactive Setup Flow:**
   1. **Source Analysis:** Verifies peer accessibility and detects forum thread IDs.
@@ -570,6 +574,20 @@ Every configuration parameter is derived directly from the application source co
 ---
 
 <br>
+
+
+◈━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◈
+### 💾 SAVED CHANNEL MEMORY SUBSYSTEM (SOURCE & DESTINATION)
+◈━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━◈
+* **Purpose:** Permanent database-backed storage for frequently used source and destination channels, eliminating manual channel ID lookups and enabling instant 1-click selection during forwarding tasks and watcher setup.
+* **Commands:**
+  * `/addsourcechannel` (Alias: `/addsource`) — Interactive or direct link/ID prompt to register and auto-name a source channel.
+  * `/adddestinationchannel` (Alias: `/adddest`) — Validates bot/userbot posting rights and registers destination channel/topic into database.
+  * `/viewsourcechannels` (Alias: `/viewsources`) — Paginated interactive browser (10 channels per page) with delete confirmation and 1-click `/watch` deployment.
+  * `/viewdestinationchannels` (Alias: `/viewdest`) — Paginated interactive browser for saved destination channels with delete confirmation.
+* **Watcher Integration:** Running `/watch` without arguments queries your saved source channels, presenting an interactive grid where tapping any channel immediately starts surveillance configuration!
+
+---
 
 ## 🛰️ 12. LIVE WATCHER SURVEILLANCE & AUTO-ROUTING ENGINE
 
