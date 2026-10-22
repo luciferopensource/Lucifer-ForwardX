@@ -1843,7 +1843,7 @@ async def tasks_refresh_callback(client: Client, query: CallbackQuery):
         info["needs_refresh"] = True
     await query.answer("✅ Active tasks refreshed!", show_alert=True)
 
-PAGE_SIZE_WATCHERS = 10
+PAGE_SIZE_WATCHERS = 20
 
 def build_watchers_page_ui(user_watchers, page=0, is_admin_view=False):
     total = len(user_watchers)
@@ -3548,49 +3548,7 @@ async def ask_for_speed(message: Message):
 # --- CHANNEL MEMORY CALLBACKS & /channels COMMAND ---
 # ==============================================================================
 
-@app.on_callback_query(filters.regex(r"^ch_sel:(-?\d+):?(\d+)?"))
-async def channel_memory_select_callback(client: Client, query: CallbackQuery):
-    user_id = query.from_user.id
-    if not is_authorized(user_id):
-        return await query.answer("⛔ Access Denied: You are not authorized to use this bot.", show_alert=True)
-    if user_id not in PENDING_TASKS:
-        return await query.answer("❌ Task expired. Please send the link again.", show_alert=True)
 
-    match = query.matches[0]
-    channel_id = int(match.group(1))
-    thread_id = int(match.group(2)) if match.group(2) and match.group(2) != "0" else None
-
-    wait_ans = await query.answer("⚡ Selecting saved channel...")
-    
-    # Verify title & access
-    title = f"Chat {channel_id}"
-    try:
-        chat = await client.get_chat(channel_id)
-        title = chat.title or title
-    except Exception:
-        pass
-
-    success, error_msg = await test_destination_access(client, channel_id, thread_id)
-    if not success:
-        return await query.message.edit(
-            f"❌ <b>Access Error to '{title}'</b>\n\n"
-            f"Cannot post to this saved channel right now.\n"
-            f"<b>Details:</b> <code>{error_msg}</code>\n\n"
-            f"<i>Make sure I am an administrator in that chat with post permissions.</i>",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 Back to Saved Channels", callback_data="dest_custom")],
-                [InlineKeyboardButton("🛑 Cancel", callback_data="cancel_setup")]
-            ])
-        )
-
-    PENDING_TASKS[user_id]["dest_chat_id"] = channel_id
-    PENDING_TASKS[user_id]["dest_thread_id"] = thread_id
-    PENDING_TASKS[user_id]["dest_title"] = title
-    PENDING_TASKS[user_id]["status"] = "waiting_speed"
-
-    # Update use count
-    await db.save_channel(user_id, channel_id, title, channel_type="dest", thread_id=thread_id)
-    await ask_for_speed(query.message)
 
 @app.on_callback_query(filters.regex(r"^(?:ch_page:(\d+):?(\w+)?:?(\w+)?|ch_pg:(\d+))"))
 async def channel_memory_page_callback(client: Client, query: CallbackQuery):
